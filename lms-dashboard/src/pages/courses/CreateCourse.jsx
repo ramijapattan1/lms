@@ -4,19 +4,21 @@ import { toast } from 'react-toastify';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import Card from '../../components/common/Card';
+import { api } from '../../services/api';
 
 export default function CreateCourse() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    thumbnail: '',
+    thumbnailUrl: '',
     duration: '',
     category: '',
     price: '',
     level: 'beginner'
   });
   const [content, setContent] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -28,25 +30,24 @@ export default function CreateCourse() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    
     try {
-      // API call would go here to create the course
-      // const response = await fetch('/api/courses', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({
-      //     ...formData,
-      //     content,
-      //   }),
-      // });
-      // const data = await response.json();
-      // if (!response.ok) throw new Error(data.message);
-      
+      const courseData = {
+        ...formData,
+        content,
+        duration: parseInt(formData.duration),
+        price: parseFloat(formData.price) || 0
+      };
+
+      await api.createCourse(courseData);
       toast.success('Course created successfully!');
-      navigate('/courses'); // Navigate to courses list after successful creation
+      navigate('/courses');
     } catch (error) {
-      toast.error('Failed to create course: ' + error.message);
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to create course';
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -105,11 +106,11 @@ export default function CreateCourse() {
               </label>
               <input
                 type="url"
-                name="thumbnail"
-                value={formData.thumbnail}
+                name="thumbnailUrl"
+                value={formData.thumbnailUrl}
                 onChange={handleChange}
                 className="w-full p-2 border rounded focus:ring-primary focus:border-primary"
-                required
+                placeholder="https://example.com/image.jpg"
               />
             </div>
 
@@ -124,6 +125,7 @@ export default function CreateCourse() {
                 onChange={handleChange}
                 className="w-full p-2 border rounded focus:ring-primary focus:border-primary"
                 required
+                min="1"
               />
             </div>
 
@@ -143,6 +145,8 @@ export default function CreateCourse() {
                 <option value="design">Design</option>
                 <option value="business">Business</option>
                 <option value="marketing">Marketing</option>
+                <option value="data-science">Data Science</option>
+                <option value="web-development">Web Development</option>
               </select>
             </div>
 
@@ -173,7 +177,8 @@ export default function CreateCourse() {
                 value={formData.price}
                 onChange={handleChange}
                 className="w-full p-2 border rounded focus:ring-primary focus:border-primary"
-                required
+                min="0"
+                step="0.01"
               />
             </div>
           </div>
@@ -184,14 +189,16 @@ export default function CreateCourse() {
             type="button"
             onClick={() => navigate('/courses')}
             className="px-4 py-2 border rounded text-gray-700 hover:bg-gray-50"
+            disabled={loading}
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90"
+            className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+            disabled={loading}
           >
-            Create Course
+            {loading ? 'Creating...' : 'Create Course'}
           </button>
         </div>
       </form>

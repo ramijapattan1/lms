@@ -1,30 +1,20 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
 import { FaBook, FaGraduationCap, FaClock, FaCalendarAlt } from 'react-icons/fa';
+import { api } from '../../services/api';
+import { toast } from 'react-toastify';
 
 export default function StudentDashboard() {
   const { user } = useAuth();
-  const [enrolledCourses] = useState([
-    {
-      id: '1',
-      title: 'Complete Web Development Bootcamp',
-      progress: 60,
-      instructor: 'John Smith',
-      thumbnail: 'https://images.pexels.com/photos/1181671/pexels-photo-1181671.jpeg',
-      nextLesson: 'JavaScript Basics',
-      nextLessonTime: '2:00 PM Today'
-    },
-    {
-      id: '2',
-      title: 'Advanced React Patterns',
-      progress: 30,
-      instructor: 'Jane Doe',
-      thumbnail: 'https://images.pexels.com/photos/11035471/pexels-photo-11035471.jpeg',
-      nextLesson: 'Custom Hooks',
-      nextLessonTime: '4:00 PM Today'
-    }
-  ]);
+  const [enrolledCourses, setEnrolledCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    enrolledCourses: 0,
+    activeCourses: 0,
+    hoursSpent: 0,
+    assignments: 0
+  });
 
   const [upcomingSchedule] = useState([
     {
@@ -43,6 +33,39 @@ export default function StudentDashboard() {
     }
   ]);
 
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await api.getEnrolledCourses();
+        const coursesData = response.data.courses || [];
+        setEnrolledCourses(coursesData);
+
+        // Calculate stats
+        setStats({
+          enrolledCourses: coursesData.length,
+          activeCourses: coursesData.length, // All enrolled courses are considered active
+          hoursSpent: coursesData.reduce((acc, course) => {
+            const duration = parseInt(course.duration) || 0;
+            const progress = course.progress || 0;
+            return acc + (duration * progress / 100);
+          }, 0),
+          assignments: 5 // This would come from assessments API
+        });
+      } catch (error) {
+        const errorMessage = error.response?.data?.message || error.message || 'Failed to load data';
+        toast.error(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return <div className="p-6 text-center">Loading dashboard...</div>;
+  }
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
@@ -58,7 +81,7 @@ export default function StudentDashboard() {
             </div>
             <div className="ml-4">
               <h3 className="text-lg font-semibold">Enrolled Courses</h3>
-              <p className="text-2xl font-bold text-blue-500">{enrolledCourses.length}</p>
+              <p className="text-2xl font-bold text-blue-500">{stats.enrolledCourses}</p>
             </div>
           </div>
         </div>
@@ -70,7 +93,7 @@ export default function StudentDashboard() {
             </div>
             <div className="ml-4">
               <h3 className="text-lg font-semibold">Active Courses</h3>
-              <p className="text-2xl font-bold text-green-500">2</p>
+              <p className="text-2xl font-bold text-green-500">{stats.activeCourses}</p>
             </div>
           </div>
         </div>
@@ -82,7 +105,7 @@ export default function StudentDashboard() {
             </div>
             <div className="ml-4">
               <h3 className="text-lg font-semibold">Hours Spent</h3>
-              <p className="text-2xl font-bold text-purple-500">45h</p>
+              <p className="text-2xl font-bold text-purple-500">{Math.round(stats.hoursSpent)}h</p>
             </div>
           </div>
         </div>
@@ -94,7 +117,7 @@ export default function StudentDashboard() {
             </div>
             <div className="ml-4">
               <h3 className="text-lg font-semibold">Assignments</h3>
-              <p className="text-2xl font-bold text-yellow-500">5</p>
+              <p className="text-2xl font-bold text-yellow-500">{stats.assignments}</p>
             </div>
           </div>
         </div>
@@ -105,33 +128,45 @@ export default function StudentDashboard() {
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-xl font-semibold mb-4">My Learning</h2>
             <div className="space-y-6">
-              {enrolledCourses.map(course => (
-                <div key={course.id} className="flex gap-4 p-4 border rounded-lg">
-                  <img
-                    src={course.thumbnail}
-                    alt={course.title}
-                    className="w-32 h-24 object-cover rounded"
-                  />
-                  <div className="flex-1">
-                    <h3 className="font-semibold mb-2">{course.title}</h3>
-                    <p className="text-sm text-gray-600 mb-2">
-                      Instructor: {course.instructor}
-                    </p>
-                    <div className="w-full bg-gray-200 rounded-full h-2.5">
-                      <div
-                        className="bg-primary h-2.5 rounded-full"
-                        style={{ width: `${course.progress}%` }}
-                      ></div>
-                    </div>
-                    <div className="flex justify-between mt-2 text-sm">
-                      <span>{course.progress}% Complete</span>
-                      <Link to={`/courses/${course.id}`} className="text-primary hover:underline">
-                        Continue Learning
-                      </Link>
+              {enrolledCourses.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-500 mb-4">You haven't enrolled in any courses yet.</p>
+                  <Link
+                    to="/courses"
+                    className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90"
+                  >
+                    Browse Courses
+                  </Link>
+                </div>
+              ) : (
+                enrolledCourses.map(course => (
+                  <div key={course.id} className="flex gap-4 p-4 border rounded-lg">
+                    <img
+                      src={course.thumbnail}
+                      alt={course.title}
+                      className="w-32 h-24 object-cover rounded"
+                    />
+                    <div className="flex-1">
+                      <h3 className="font-semibold mb-2">{course.title}</h3>
+                      <p className="text-sm text-gray-600 mb-2">
+                        Instructor: {course.instructor}
+                      </p>
+                      <div className="w-full bg-gray-200 rounded-full h-2.5">
+                        <div
+                          className="bg-primary h-2.5 rounded-full"
+                          style={{ width: `${course.progress || 0}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex justify-between mt-2 text-sm">
+                        <span>{course.progress || 0}% Complete</span>
+                        <Link to={`/courses/${course.id}`} className="text-primary hover:underline">
+                          Continue Learning
+                        </Link>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>

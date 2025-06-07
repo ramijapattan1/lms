@@ -45,8 +45,26 @@ const getQuizzes = asyncHandler(async (req, res) => {
 
   const total = await Quiz.countDocuments(filter);
 
+  // Transform quizzes to match frontend expectations
+  const transformedQuizzes = quizzes.map(quiz => ({
+    id: quiz._id,
+    title: quiz.title,
+    description: quiz.description,
+    duration: quiz.timeLimit,
+    questions: quiz.questions?.length || 0,
+    startDate: quiz.startDate,
+    endDate: quiz.endDate,
+    isEnabled: quiz.isActive,
+    attempts: quiz.attempts?.length || 0,
+    avgScore: quiz.attempts?.length > 0 
+      ? quiz.attempts.reduce((acc, attempt) => acc + attempt.percentage, 0) / quiz.attempts.length 
+      : 0,
+    course: quiz.course,
+    instructor: quiz.instructor
+  }));
+
   res.json({
-    quizzes,
+    quizzes: transformedQuizzes,
     page,
     pages: Math.ceil(total / limit),
     total,
@@ -55,47 +73,48 @@ const getQuizzes = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * Save quiz progress
+ * @route   POST /api/quizzes/:id/progress
+ * @access  Private
+ */
+const saveQuizProgress = asyncHandler(async (req, res) => {
+  const { answers, lastQuestionIndex } = req.body;
 
- // Save quiz progress
-  const saveQuizProgress = asyncHandler(async (req, res) => {
-    const { answers, lastQuestionIndex } = req.body;
+  if (!Array.isArray(answers)) {
+    res.status(400);
+    throw new Error('Answers must be an array');
+  }
 
-    if (!Array.isArray(answers)) {
-      res.status(400);
-      throw new Error('Answers must be an array');
-    }
+  const quiz = await Quiz.findById(req.params.id);
+  if (!quiz) {
+    res.status(404);
+    throw new Error('Quiz not found');
+  }
 
-    const quiz = await Quiz.findById(req.params.id);
-    if (!quiz) {
-      res.status(404);
-      throw new Error('Quiz not found');
-    }
+  // Find existing progress for this user
+  let progress = quiz.inProgressAttempts.find(
+    (a) => a.student.toString() === req.user._id.toString()
+  );
 
-    // Find existing progress for this user
-    let progress = quiz.inProgressAttempts.find(
-      (a) => a.student.toString() === req.user._id.toString()
-    );
+  if (progress) {
+    // Update existing progress
+    progress.answers = answers;
+    progress.lastQuestionIndex = lastQuestionIndex;
+    progress.lastUpdated = Date.now();
+  } else {
+    // Add new progress
+    quiz.inProgressAttempts.push({
+      student: req.user._id,
+      answers,
+      lastQuestionIndex,
+    });
+  }
 
-    if (progress) {
-      // Update existing progress
-      progress.answers = answers;
-      progress.lastQuestionIndex = lastQuestionIndex;
-      progress.lastUpdated = Date.now();
-    } else {
-      // Add new progress
-      quiz.inProgressAttempts.push({
-        student: req.user._id,
-        answers,
-        lastQuestionIndex,
-      });
-    }
+  await quiz.save();
 
-    await quiz.save();
-
-    res.json({ message: 'Progress saved' });
-  });
-
-
+  res.json({ message: 'Progress saved' });
+});
 
 /**
  * Get quiz by ID
@@ -111,7 +130,6 @@ const getQuizById = asyncHandler(async (req, res) => {
     res.status(404);
     throw new Error('Quiz not found');
   }
-
 
   // Check permissions
   const isInstructor = quiz.instructor._id.toString() === req.user._id.toString();
@@ -138,7 +156,27 @@ const getQuizById = asyncHandler(async (req, res) => {
     delete quiz.attempts;
   }
 
-  res.json(quiz);
+  // Transform quiz to match frontend expectations
+  const transformedQuiz = {
+    id: quiz._id,
+    title: quiz.title,
+    description: quiz.description,
+    duration: quiz.timeLimit,
+    questions: quiz.questions?.map((q, index) => ({
+      id: q._id || index.toString(),
+      question: q.question,
+      options: q.options?.map(opt => opt.text) || [],
+      isMultiple: false // Assuming single choice for now
+    })) || [],
+    startDate: quiz.startDate,
+    endDate: quiz.endDate,
+    isEnabled: quiz.isActive,
+    passingScore: 70, // Default passing score
+    course: quiz.course,
+    instructor: quiz.instructor
+  };
+
+  res.json(transformedQuiz);
 });
 
 /**
@@ -200,6 +238,7 @@ const createQuiz = asyncHandler(async (req, res) => {
     ...quizData,
     course: courseId,
     instructor: req.user._id,
+    isActive: true
   });
 
   res.status(201).json(quiz);

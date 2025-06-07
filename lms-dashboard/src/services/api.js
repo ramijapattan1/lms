@@ -1,113 +1,133 @@
-// Dummy data for the application
-export const DUMMY_DATA = {
-  courses: [
-    {
-      id: '1',
-      title: 'Complete Web Development Bootcamp',
-      description: 'Learn web development from scratch to advanced level',
-      thumbnail: 'https://images.pexels.com/photos/1181671/pexels-photo-1181671.jpeg',
-      instructor: 'John Smith',
-      duration: '40 hours',
-      lessons: 48,
-      price: 99.99,
-      level: 'beginner',
-      category: 'programming',
-      enrolled: 1234,
-      rating: 4.5,
-      chapters: [
-        {
-          id: '1',
-          title: 'Introduction to Web Development',
-          lessons: [
-            { id: '1', title: 'Welcome to the Course', duration: '10:00', type: 'video' },
-            { id: '2', title: 'Setting Up Your Environment', duration: '15:00', type: 'video' },
-          ]
-        },
-        {
-          id: '2',
-          title: 'HTML Fundamentals',
-          lessons: [
-            { id: '3', title: 'Basic HTML Structure', duration: '20:00', type: 'video' },
-            { id: '4', title: 'HTML Forms and Tables', duration: '25:00', type: 'video' },
-            { id: '5', title: 'HTML Quiz', type: 'quiz' },
-          ]
-        }
-      ]
-    }
-  ],
-  quizzes: [
-    {
-      id: '1',
-      title: 'HTML Basics Quiz',
-      description: 'Test your knowledge of HTML fundamentals',
-      duration: 30, // minutes
-      passingScore: 70,
-      questions: [
-        {
-          id: '1',
-          question: 'What does HTML stand for?',
-          options: [
-            'Hyper Text Markup Language',
-            'High Tech Modern Language',
-            'Hyper Transfer Markup Language',
-            'Home Tool Markup Language'
-          ],
-          correctAnswer: 0,
-          isMultiple: false
-        }
-      ]
-    }
-  ],
-  discussions: [
-    {
-      id: '1',
-      title: 'Help with JavaScript Promises',
-      content: 'I\'m having trouble understanding how promises work in JavaScript...',
-      author: 'Jane Doe',
-      createdAt: '2025-03-15T10:00:00Z',
-      replies: [
-        {
-          id: '1',
-          content: 'Promises are a way to handle asynchronous operations...',
-          author: 'John Smith',
-          createdAt: '2025-03-15T10:30:00Z'
-        }
-      ]
-    }
-  ],
-  notifications: [
-    {
-      id: '1',
-      title: 'New Reply to Your Question',
-      message: 'John Smith replied to your question about JavaScript Promises',
-      type: 'discussion',
-      referenceId: '1',
-      createdAt: '2025-03-15T10:30:00Z',
-      read: false
-    }
-  ]
-};
+import axios from 'axios';
 
-// API service functions that would normally make HTTP requests
-// These are currently using dummy data
+const API_BASE_URL = 'http://localhost:5000/api';
+
+// Create axios instance with default config
+const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Add auth token to requests
+apiClient.interceptors.request.use((config) => {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  if (user.token) {
+    config.headers.Authorization = `Bearer ${user.token}`;
+  }
+  return config;
+});
+
+// Handle response errors
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const api = {
+  // Auth
+  login: (credentials) => apiClient.post('/auth/login', credentials),
+  register: (userData) => apiClient.post('/auth/register', userData),
+  getProfile: () => apiClient.get('/auth/profile'),
+  updateProfile: (data) => apiClient.put('/auth/profile', data),
+
   // Courses
-  getCourses: () => Promise.resolve(DUMMY_DATA.courses),
-  getCourseById: (id) => Promise.resolve(DUMMY_DATA.courses.find(c => c.id === id)),
-  createCourse: (course) => Promise.resolve({ ...course, id: Date.now().toString() }),
+  getCourses: (params = {}) => apiClient.get('/courses', { params }),
+  getCourseById: (id) => apiClient.get(`/courses/${id}`),
+  createCourse: (course) => apiClient.post('/courses', course),
+  updateCourse: (id, course) => apiClient.put(`/courses/${id}`, course),
+  deleteCourse: (id) => apiClient.delete(`/courses/${id}`),
+  enrollInCourse: (id) => apiClient.post(`/courses/${id}/enroll`),
+  getMyCourses: (params = {}) => apiClient.get('/courses/my/courses', { params }),
+  getEnrolledCourses: (params = {}) => apiClient.get('/courses/enrolled/my-courses', { params }),
+  getCourseProgress: (courseId) => apiClient.get(`/courses/${courseId}/full-progress`),
+
+  // Videos
+  getVideos: (params = {}) => apiClient.get('/videos', { params }),
+  getVideoById: (id) => apiClient.get(`/videos/${id}`),
+  uploadVideo: (formData) => apiClient.post('/videos', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  updateVideo: (id, data) => apiClient.put(`/videos/${id}`, data),
+  deleteVideo: (id) => apiClient.delete(`/videos/${id}`),
+  streamVideo: (id) => apiClient.get(`/videos/${id}/stream`),
 
   // Quizzes
-  getQuizzes: () => Promise.resolve(DUMMY_DATA.quizzes),
-  getQuizById: (id) => Promise.resolve(DUMMY_DATA.quizzes.find(q => q.id === id)),
-  submitQuizAttempt: (attempt) => Promise.resolve({ ...attempt, score: 85 }),
+  getQuizzes: (params = {}) => apiClient.get('/quizzes', { params }),
+  getQuizById: (id) => apiClient.get(`/quizzes/${id}`),
+  createQuiz: (quiz) => apiClient.post('/quizzes', quiz),
+  updateQuiz: (id, quiz) => apiClient.put(`/quizzes/${id}`, quiz),
+  deleteQuiz: (id) => apiClient.delete(`/quizzes/${id}`),
+  submitQuizAttempt: (id, attempt) => apiClient.post(`/quizzes/${id}/attempt`, attempt),
+  getQuizResults: (id) => apiClient.get(`/quizzes/${id}/results`),
+  saveQuizProgress: (id, progress) => apiClient.post(`/quizzes/${id}/progress`, progress),
+
+  // Assessments
+  getAssessments: (params = {}) => apiClient.get('/assessments', { params }),
+  getAssessmentById: (id) => apiClient.get(`/assessments/${id}`),
+  createAssessment: (assessment) => apiClient.post('/assessments', assessment),
+  updateAssessment: (id, assessment) => apiClient.put(`/assessments/${id}`, assessment),
+  deleteAssessment: (id) => apiClient.delete(`/assessments/${id}`),
+  submitAssessment: (id, submission) => apiClient.post(`/assessments/${id}/submit`, submission),
+  gradeSubmission: (assessmentId, submissionId, grade) => 
+    apiClient.put(`/assessments/${assessmentId}/submissions/${submissionId}/grade`, grade),
+  getAssessmentSubmissions: (id, params = {}) => 
+    apiClient.get(`/assessments/${id}/submissions`, { params }),
 
   // Discussions
-  getDiscussions: () => Promise.resolve(DUMMY_DATA.discussions),
-  createDiscussion: (discussion) => Promise.resolve({ ...discussion, id: Date.now().toString() }),
-  addReply: (discussionId, reply) => Promise.resolve({ ...reply, id: Date.now().toString() }),
+  getDiscussions: (params = {}) => apiClient.get('/discussions', { params }),
+  getDiscussionById: (id) => apiClient.get(`/discussions/${id}`),
+  createDiscussion: (discussion) => apiClient.post('/discussions', discussion),
+  updateDiscussion: (id, discussion) => apiClient.put(`/discussions/${id}`, discussion),
+  deleteDiscussion: (id) => apiClient.delete(`/discussions/${id}`),
+  addReply: (id, reply) => apiClient.post(`/discussions/${id}/replies`, reply),
+  updateReply: (discussionId, replyId, reply) => 
+    apiClient.put(`/discussions/${discussionId}/replies/${replyId}`, reply),
+  deleteReply: (discussionId, replyId) => 
+    apiClient.delete(`/discussions/${discussionId}/replies/${replyId}`),
+  toggleLike: (id) => apiClient.post(`/discussions/${id}/like`),
+
+  // Doubts
+  getDoubts: (params = {}) => apiClient.get('/doubts', { params }),
+  getDoubtById: (id) => apiClient.get(`/doubts/${id}`),
+  createDoubt: (doubt) => apiClient.post('/doubts', doubt),
+  updateDoubt: (id, doubt) => apiClient.put(`/doubts/${id}`, doubt),
+  deleteDoubt: (id) => apiClient.delete(`/doubts/${id}`),
+  addResponse: (id, response) => apiClient.post(`/doubts/${id}/responses`, response),
+  resolveDoubt: (id) => apiClient.put(`/doubts/${id}/resolve`),
+  toggleUpvote: (id) => apiClient.post(`/doubts/${id}/upvote`),
 
   // Notifications
-  getNotifications: () => Promise.resolve(DUMMY_DATA.notifications),
-  markNotificationAsRead: (id) => Promise.resolve({ success: true }),
-  deleteNotification: (id) => Promise.resolve({ success: true })
+  getNotifications: (params = {}) => apiClient.get('/notifications', { params }),
+  getNotificationById: (id) => apiClient.get(`/notifications/${id}`),
+  createNotification: (notification) => apiClient.post('/notifications', notification),
+  markNotificationAsRead: (id) => apiClient.put(`/notifications/${id}/read`),
+  markAllNotificationsAsRead: () => apiClient.put('/notifications/mark-all-read'),
+  deleteNotification: (id) => apiClient.delete(`/notifications/${id}`),
+  deleteAllNotifications: () => apiClient.delete('/notifications/delete-all'),
+  getNotificationStats: () => apiClient.get('/notifications/stats'),
+
+  // Programming Environment
+  getProgrammingEnvs: (params = {}) => apiClient.get('/programming', { params }),
+  getProgrammingEnvById: (id) => apiClient.get(`/programming/${id}`),
+  createProgrammingEnv: (env) => apiClient.post('/programming', env),
+  updateProgrammingEnv: (id, env) => apiClient.put(`/programming/${id}`, env),
+  deleteProgrammingEnv: (id) => apiClient.delete(`/programming/${id}`),
+  executeCode: (id, code) => apiClient.post(`/programming/${id}/execute`, code),
+  forkEnvironment: (id, data) => apiClient.post(`/programming/${id}/fork`, data),
+  addCollaborator: (id, collaborator) => apiClient.post(`/programming/${id}/collaborators`, collaborator),
+
+  // Course Progress
+  getCourseProgress: (courseId) => apiClient.get(`/course-progress/${courseId}/progress`),
+  completeVideo: (courseId, videoId) => 
+    apiClient.post(`/course-progress/${courseId}/progress/complete-video`, { videoId }),
 };
+
+export default api;

@@ -33,6 +33,7 @@ app.use('/api/discussions', require('./routes/discussionRoutes'));
 app.use('/api/doubts', require('./routes/doubtRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes'));
 app.use('/api/programming', require('./routes/programmingRoutes'));
+app.use('/api/course-progress', require('./routes/courseProgressRoutes'));
 
 // Base route
 app.get('/', (req, res) => {
@@ -51,7 +52,8 @@ app.get('/', (req, res) => {
       discussions: '/api/discussions',
       doubts: '/api/doubts',
       notifications: '/api/notifications',
-      programming: '/api/programming'
+      programming: '/api/programming',
+      courseProgress: '/api/course-progress'
     }
   });
 });

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import { api } from '../services/api';
 
 const AuthContext = createContext();
 
@@ -34,14 +34,30 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Please provide both email and password');
       }
 
-      const { data } = await axios.post('http://localhost:5000/api/auth/login', { email, password });
+      const response = await api.login({ email, password });
+      const userData = response.data;
 
-      setUser(data); // Assuming data contains token, role, etc.
+      setUser(userData);
       return { success: true };
     } catch (error) {
       return { 
         success: false, 
         error: error.response?.data?.message || error.message || 'Login failed' 
+      };
+    }
+  };
+
+  const register = async (userData) => {
+    try {
+      const response = await api.register(userData);
+      const newUser = response.data;
+
+      setUser(newUser);
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message || 'Registration failed',
       };
     }
   };
@@ -53,17 +69,10 @@ export const AuthProvider = ({ children }) => {
 
   const updateProfile = async (profileData) => {
     try {
-      const { data } = await axios.put(
-        'http://localhost:5000/api/auth/profile',
-        profileData,
-        {
-          headers: {
-            Authorization: `Bearer ${user?.token}`,
-          },
-        }
-      );
+      const response = await api.updateProfile(profileData);
+      const updatedUser = response.data;
 
-      setUser(prev => ({ ...prev, ...data }));
+      setUser(prev => ({ ...prev, ...updatedUser }));
       return { success: true };
     } catch (error) {
       return {
@@ -77,12 +86,18 @@ export const AuthProvider = ({ children }) => {
     user,
     loading,
     login,
+    register,
     logout,
     updateProfile,
   };
 
   if (loading) {
-    return <div>Loading...</div>;
+    return <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+        <p className="mt-4 text-gray-600">Loading...</p>
+      </div>
+    </div>;
   }
 
   return (

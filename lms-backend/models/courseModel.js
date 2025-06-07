@@ -70,6 +70,12 @@ const courseSchema = mongoose.Schema(
   }
 );
 
+// Add indexes for better performance
+courseSchema.index({ title: 'text', description: 'text' });
+courseSchema.index({ category: 1, level: 1 });
+courseSchema.index({ instructor: 1 });
+courseSchema.index({ isPublished: 1 });
+
 const Course = mongoose.model('Course', courseSchema);
 
 module.exports = Course;

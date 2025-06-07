@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { FaPlay, FaFile, FaQuestionCircle, FaTasks, FaEdit, FaPlus } from 'react-icons/fa';
-import axios from 'axios';
+import { api } from '../../services/api';
+import { toast } from 'react-toastify';
 
 export default function CourseDetails() {
   const { id } = useParams();
@@ -15,7 +16,7 @@ export default function CourseDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // NEW: Progress state
+  // Progress state
   const [progress, setProgress] = useState({
     lessonsCompleted: 0,
     totalLessons: 0,
@@ -30,10 +31,12 @@ export default function CourseDetails() {
       setLoading(true);
       setError(null);
       try {
-        const response = await axios.get(`http://localhost:5000/api/courses/${id}`);
+        const response = await api.getCourseById(id);
         setCourse(response.data);
       } catch (err) {
-        setError(err.response?.data?.message || err.message || 'Failed to load course');
+        const errorMessage = err.response?.data?.message || err.message || 'Failed to load course';
+        setError(errorMessage);
+        toast.error(errorMessage);
       } finally {
         setLoading(false);
       }
@@ -42,22 +45,14 @@ export default function CourseDetails() {
     fetchCourse();
   }, [id]);
 
-  // NEW: Fetch progress info from backend
+  // Fetch progress info from backend
   useEffect(() => {
-    if (!user) return; // no need if no user logged in
+    if (!user || !course) return;
 
     const fetchProgress = async () => {
       try {
-        const res = await axios.get(
-          `http://localhost:5000/api/courses/${id}/full-progress`,
-          {
-            headers: {
-              Authorization: `Bearer ${user.token}`, // if your API uses JWT token auth
-            },
-          }
-        );
-
-        const { lessons, quizzes, assessments } = res.data;
+        const response = await api.getCourseProgress(id);
+        const { lessons, quizzes, assessments } = response.data;
 
         setProgress({
           lessonsCompleted: lessons.completed,
@@ -68,15 +63,14 @@ export default function CourseDetails() {
           totalAssessments: assessments.total,
         });
       } catch (err) {
-        // Optionally handle error (e.g., console.log or show UI)
         console.error('Failed to fetch progress:', err);
       }
     };
 
     fetchProgress();
-  }, [id, user]);
+  }, [id, user, course]);
 
-  // Calculate overall completion percentage (based on lessons, quizzes, assessments)
+  // Calculate overall completion percentage
   const totalItems =
     progress.totalLessons + progress.totalQuizzes + progress.totalAssessments;
   const totalCompleted =
@@ -86,6 +80,19 @@ export default function CourseDetails() {
 
   const handleAddChapter = (chapterId) => {
     navigate(`/courses/${id}/chapters/${chapterId}/lessons/create`);
+  };
+
+  const handleEnroll = async () => {
+    try {
+      await api.enrollInCourse(id);
+      toast.success('Successfully enrolled in course!');
+      // Refresh course data
+      const response = await api.getCourseById(id);
+      setCourse(response.data);
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to enroll';
+      toast.error(errorMessage);
+    }
   };
 
   if (loading) return <div className="p-6 text-center">Loading course details...</div>;
@@ -107,6 +114,14 @@ export default function CourseDetails() {
               <span>•</span>
               <span>{course.enrolled} students</span>
             </div>
+            {!isInstructor && (
+              <button
+                onClick={handleEnroll}
+                className="px-6 py-2 bg-primary text-white rounded hover:bg-primary/90"
+              >
+                Enroll Now
+              </button>
+            )}
           </div>
           {isInstructor && (
             <Link
@@ -152,7 +167,10 @@ export default function CourseDetails() {
               {activeTab === 'overview' ? (
                 <div>
                   <h2 className="text-xl font-semibold mb-4">Course Description</h2>
-                  <p className="text-gray-600">{course.description}</p>
+                  <div 
+                    className="text-gray-600"
+                    dangerouslySetInnerHTML={{ __html: course.content || course.description }}
+                  />
                 </div>
               ) : (
                 <div className="space-y-4">

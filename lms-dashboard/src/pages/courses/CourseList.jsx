@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { FaPlus } from 'react-icons/fa';
 import CourseCard from '../../components/courses/CourseCard';
-import axios from 'axios';
+import { api } from '../../services/api';
+import { toast } from 'react-toastify';
 
 export default function CourseList() {
   const { user } = useAuth();
@@ -16,10 +17,12 @@ export default function CourseList() {
       setLoading(true);
       setError(null);
       try {
-        const response = await axios.get('http://localhost:5000/api/courses'); // Adjust API URL as needed
-        setCourses(response.data);
+        const response = await api.getCourses();
+        setCourses(response.data.courses || []);
       } catch (err) {
-        setError(err.response?.data?.message || err.message || 'Failed to load courses');
+        const errorMessage = err.response?.data?.message || err.message || 'Failed to load courses';
+        setError(errorMessage);
+        toast.error(errorMessage);
       } finally {
         setLoading(false);
       }
@@ -45,11 +48,17 @@ export default function CourseList() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {courses.map(course => (
-          <CourseCard key={course.id} course={course} />
-        ))}
-      </div>
+      {courses.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-gray-500">No courses available.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {courses.map(course => (
+            <CourseCard key={course.id} course={course} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -46,8 +46,25 @@ const getCourses = asyncHandler(async (req, res) => {
 
   const total = await Course.countDocuments(filter);
 
+  // Transform courses to match frontend expectations
+  const transformedCourses = courses.map(course => ({
+    id: course._id,
+    title: course.title,
+    description: course.description,
+    thumbnail: course.thumbnailUrl || 'https://images.pexels.com/photos/1181671/pexels-photo-1181671.jpeg',
+    instructor: course.instructor?.name || 'Unknown',
+    duration: `${course.duration} hours`,
+    lessons: course.videos?.length || 0,
+    price: course.price,
+    level: course.level,
+    category: course.category,
+    enrolled: course.students?.length || 0,
+    rating: course.rating,
+    isPublished: course.isPublished
+  }));
+
   res.json({
-    courses,
+    courses: transformedCourses,
     page,
     pages: Math.ceil(total / limit),
     total,
@@ -83,7 +100,37 @@ const getCourseById = asyncHandler(async (req, res) => {
     }
   }
 
-  res.json(course);
+  // Transform course to match frontend expectations
+  const transformedCourse = {
+    id: course._id,
+    title: course.title,
+    description: course.description,
+    thumbnail: course.thumbnailUrl || 'https://images.pexels.com/photos/1181671/pexels-photo-1181671.jpeg',
+    instructor: course.instructor?.name || 'Unknown',
+    duration: `${course.duration} hours`,
+    lessons: course.videos?.length || 0,
+    price: course.price,
+    level: course.level,
+    category: course.category,
+    enrolled: course.students?.length || 0,
+    rating: course.rating,
+    isPublished: course.isPublished,
+    content: course.content,
+    chapters: [
+      {
+        id: '1',
+        title: 'Course Content',
+        lessons: course.videos?.map(video => ({
+          id: video._id,
+          title: video.title,
+          duration: video.duration ? `${Math.floor(video.duration / 60)}:${(video.duration % 60).toString().padStart(2, '0')}` : '0:00',
+          type: 'video'
+        })) || []
+      }
+    ]
+  };
+
+  res.json(transformedCourse);
 });
 
 /**
@@ -98,6 +145,9 @@ const createCourse = asyncHandler(async (req, res) => {
     category: Joi.string().required(),
     price: Joi.number().min(0),
     thumbnailUrl: Joi.string().uri(),
+    duration: Joi.number().min(1).required(),
+    level: Joi.string().valid('beginner', 'intermediate', 'advanced').default('beginner'),
+    content: Joi.string().required()
   });
 
   const { error } = schema.validate(req.body);
@@ -106,7 +156,7 @@ const createCourse = asyncHandler(async (req, res) => {
     throw new Error(error.details[0].message);
   }
 
-  const { title, description, category, price = 0, thumbnailUrl } = req.body;
+  const { title, description, category, price = 0, thumbnailUrl, duration, level, content } = req.body;
 
   const course = await Course.create({
     title,
@@ -114,6 +164,9 @@ const createCourse = asyncHandler(async (req, res) => {
     category,
     price,
     thumbnailUrl,
+    duration,
+    level,
+    content,
     instructor: req.user._id,
   });
 
@@ -132,6 +185,9 @@ const updateCourse = asyncHandler(async (req, res) => {
     category: Joi.string(),
     price: Joi.number().min(0),
     thumbnailUrl: Joi.string().uri(),
+    duration: Joi.number().min(1),
+    level: Joi.string().valid('beginner', 'intermediate', 'advanced'),
+    content: Joi.string(),
     isPublished: Joi.boolean(),
   });
 
@@ -244,8 +300,26 @@ const getMyCourses = asyncHandler(async (req, res) => {
 
   const total = await Course.countDocuments({ instructor: req.user._id });
 
+  // Transform courses to match frontend expectations
+  const transformedCourses = courses.map(course => ({
+    id: course._id,
+    title: course.title,
+    description: course.description,
+    thumbnail: course.thumbnailUrl || 'https://images.pexels.com/photos/1181671/pexels-photo-1181671.jpeg',
+    instructor: req.user.name,
+    duration: `${course.duration} hours`,
+    lessons: course.videos?.length || 0,
+    price: course.price,
+    level: course.level,
+    category: course.category,
+    enrolled: course.students?.length || 0,
+    rating: course.rating,
+    students: course.students?.length || 0,
+    revenue: (course.students?.length || 0) * course.price
+  }));
+
   res.json({
-    courses,
+    courses: transformedCourses,
     page,
     pages: Math.ceil(total / limit),
     total,
@@ -271,8 +345,27 @@ const getEnrolledCourses = asyncHandler(async (req, res) => {
 
   const total = await Course.countDocuments({ students: req.user._id });
 
+  // Transform courses to match frontend expectations
+  const transformedCourses = courses.map(course => ({
+    id: course._id,
+    title: course.title,
+    description: course.description,
+    thumbnail: course.thumbnailUrl || 'https://images.pexels.com/photos/1181671/pexels-photo-1181671.jpeg',
+    instructor: course.instructor?.name || 'Unknown',
+    duration: `${course.duration} hours`,
+    lessons: course.videos?.length || 0,
+    price: course.price,
+    level: course.level,
+    category: course.category,
+    enrolled: course.students?.length || 0,
+    rating: course.rating,
+    progress: 60, // This would be calculated based on actual progress
+    nextLesson: course.videos?.[0]?.title || 'No lessons available',
+    nextLessonTime: '2:00 PM Today'
+  }));
+
   res.json({
-    courses,
+    courses: transformedCourses,
     page,
     pages: Math.ceil(total / limit),
     total,

@@ -1,28 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
 import { FaBook, FaUsers, FaGraduationCap, FaStar } from 'react-icons/fa';
+import { api } from '../../services/api';
+import { toast } from 'react-toastify';
 
 export default function InstructorDashboard() {
   const { user } = useAuth();
-  const [courses] = useState([
-    {
-      id: '1',
-      title: 'Complete Web Development Bootcamp',
-      students: 234,
-      rating: 4.5,
-      thumbnail: 'https://images.pexels.com/photos/1181671/pexels-photo-1181671.jpeg',
-      revenue: 2340
-    },
-    {
-      id: '2',
-      title: 'Advanced React Patterns',
-      students: 156,
-      rating: 4.8,
-      thumbnail: 'https://images.pexels.com/photos/11035471/pexels-photo-11035471.jpeg',
-      revenue: 1560
-    }
-  ]);
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalCourses: 0,
+    totalStudents: 0,
+    activeCourses: 0,
+    avgRating: 0,
+    totalRevenue: 0
+  });
 
   const [recentActivities] = useState([
     {
@@ -42,6 +35,42 @@ export default function InstructorDashboard() {
     }
   ]);
 
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await api.getMyCourses();
+        const coursesData = response.data.courses || [];
+        setCourses(coursesData);
+
+        // Calculate stats
+        const totalStudents = coursesData.reduce((acc, course) => acc + (course.students || 0), 0);
+        const totalRevenue = coursesData.reduce((acc, course) => acc + (course.revenue || 0), 0);
+        const avgRating = coursesData.length > 0 
+          ? coursesData.reduce((acc, course) => acc + (course.rating || 0), 0) / coursesData.length 
+          : 0;
+
+        setStats({
+          totalCourses: coursesData.length,
+          totalStudents,
+          activeCourses: coursesData.filter(course => course.isPublished !== false).length,
+          avgRating: avgRating.toFixed(1),
+          totalRevenue
+        });
+      } catch (error) {
+        const errorMessage = error.response?.data?.message || error.message || 'Failed to load data';
+        toast.error(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return <div className="p-6 text-center">Loading dashboard...</div>;
+  }
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
@@ -57,7 +86,7 @@ export default function InstructorDashboard() {
             </div>
             <div className="ml-4">
               <h3 className="text-lg font-semibold">Total Courses</h3>
-              <p className="text-2xl font-bold text-blue-500">{courses.length}</p>
+              <p className="text-2xl font-bold text-blue-500">{stats.totalCourses}</p>
             </div>
           </div>
         </div>
@@ -69,9 +98,7 @@ export default function InstructorDashboard() {
             </div>
             <div className="ml-4">
               <h3 className="text-lg font-semibold">Total Students</h3>
-              <p className="text-2xl font-bold text-green-500">
-                {courses.reduce((acc, course) => acc + course.students, 0)}
-              </p>
+              <p className="text-2xl font-bold text-green-500">{stats.totalStudents}</p>
             </div>
           </div>
         </div>
@@ -83,7 +110,7 @@ export default function InstructorDashboard() {
             </div>
             <div className="ml-4">
               <h3 className="text-lg font-semibold">Active Courses</h3>
-              <p className="text-2xl font-bold text-purple-500">{courses.length}</p>
+              <p className="text-2xl font-bold text-purple-500">{stats.activeCourses}</p>
             </div>
           </div>
         </div>
@@ -94,8 +121,8 @@ export default function InstructorDashboard() {
               <FaStar className="text-yellow-500 text-xl" />
             </div>
             <div className="ml-4">
-              <h3 className="text-lg font-semibold">Total Ratings</h3>
-              <p className="text-2xl font-bold text-yellow-500">4.7</p>
+              <h3 className="text-lg font-semibold">Avg Rating</h3>
+              <p className="text-2xl font-bold text-yellow-500">{stats.avgRating}</p>
             </div>
           </div>
         </div>
@@ -114,35 +141,39 @@ export default function InstructorDashboard() {
               </Link>
             </div>
             <div className="space-y-6">
-              {courses.map(course => (
-                <div key={course.id} className="flex gap-4 p-4 border rounded-lg">
-                  <img
-                    src={course.thumbnail}
-                    alt={course.title}
-                    className="w-32 h-24 object-cover rounded"
-                  />
-                  <div className="flex-1">
-                    <h3 className="font-semibold mb-2">{course.title}</h3>
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <p className="text-gray-500">Students</p>
-                        <p className="font-semibold">{course.students}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Rating</p>
-                        <p className="font-semibold flex items-center">
-                          {course.rating}
-                          <FaStar className="text-yellow-400 ml-1" />
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Revenue</p>
-                        <p className="font-semibold">${course.revenue}</p>
+              {courses.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No courses created yet.</p>
+              ) : (
+                courses.map(course => (
+                  <div key={course.id} className="flex gap-4 p-4 border rounded-lg">
+                    <img
+                      src={course.thumbnail}
+                      alt={course.title}
+                      className="w-32 h-24 object-cover rounded"
+                    />
+                    <div className="flex-1">
+                      <h3 className="font-semibold mb-2">{course.title}</h3>
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <p className="text-gray-500">Students</p>
+                          <p className="font-semibold">{course.students || 0}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Rating</p>
+                          <p className="font-semibold flex items-center">
+                            {course.rating || 0}
+                            <FaStar className="text-yellow-400 ml-1" />
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Revenue</p>
+                          <p className="font-semibold">${course.revenue || 0}</p>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>
