@@ -13,11 +13,11 @@ const {
 } = require('../controllers/courseController');
 const { protect, instructor } = require('../middlewares/authMiddleware');
 
-// Public routes
+// Public routes (no authentication required)
 router.get('/', getCourses);
 router.get('/:id', getCourseById);
 
-// Protected routes
+// Protected routes (authentication required)
 router.use(protect);
 
 // Student routes
@@ -34,4 +34,4 @@ router.route('/:id')
 // Add new consolidated progress route
 router.get('/:courseId/full-progress', protect, getFullCourseProgress);
 
-module.exports = router;
+module.exports = router;  
