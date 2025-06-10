@@ -61,7 +61,18 @@ export default function DiscussionForum() {
     }
 
     try {
-      await api.createDiscussion(newDiscussion);
+      const discussionData = {
+        title: newDiscussion.title,
+        content: newDiscussion.content,
+        category: newDiscussion.category
+      };
+
+      // Only add courseId if it's selected and not empty
+      if (newDiscussion.courseId && newDiscussion.courseId.trim() !== '') {
+        discussionData.courseId = newDiscussion.courseId;
+      }
+
+      await api.createDiscussion(discussionData);
       toast.success('Discussion created successfully!');
       setShowCreateModal(false);
       setNewDiscussion({ title: '', content: '', courseId: '', category: 'general' });

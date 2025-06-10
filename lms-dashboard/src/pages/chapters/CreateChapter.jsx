@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import Card from '../../components/common/Card';
+import { api } from '../../services/api';
 
 export default function CreateChapter() {
   const { courseId } = useParams();
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -22,12 +24,23 @@ export default function CreateChapter() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    
     try {
-      // API call would go here
+      const chapterData = {
+        ...formData,
+        courseId,
+        orderIndex: parseInt(formData.orderIndex)
+      };
+
+      await api.createChapter(chapterData);
       toast.success('Chapter created successfully!');
       navigate(`/courses/${courseId}`);
     } catch (error) {
-      toast.error('Failed to create chapter');
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to create chapter';
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -88,14 +101,16 @@ export default function CreateChapter() {
             type="button"
             onClick={() => navigate(`/courses/${courseId}`)}
             className="px-4 py-2 border rounded text-gray-700 hover:bg-gray-50"
+            disabled={loading}
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90"
+            className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+            disabled={loading}
           >
-            Create Chapter
+            {loading ? 'Creating...' : 'Create Chapter'}
           </button>
         </div>
       </form>

@@ -1,51 +1,79 @@
-import { useState, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import { FaList, FaQuestion } from 'react-icons/fa';
 import ReactPlayer from 'react-player';
+import { api } from '../../services/api';
+import { toast } from 'react-toastify';
 
 export default function LessonPlayer() {
-  const { courseId, lessonId } = useParams();
+  const { lessonId } = useParams();
+  const { user } = useAuth();
+  const [lesson, setLesson] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [showAskDoubtModal, setShowAskDoubtModal] = useState(false);
   const [doubt, setDoubt] = useState('');
-  const videoRef = useRef(null);
+  const [upcomingLessons, setUpcomingLessons] = useState([]);
 
-  // Mock lesson data
-  const [lesson, setLesson] = useState({
-    id: lessonId,
-    title: 'Introduction to React Hooks',
-    description: 'Learn about React Hooks and their usage in modern React applications.',
-    videoUrl: '',
-    videoFile: null,
-    resources: [
-      { id: '1', title: 'Hooks Documentation', type: 'pdf' },
-      { id: '2', title: 'Example Code', type: 'code' }
-    ]
-  });
+  useEffect(() => {
+    const fetchLesson = async () => {
+      try {
+        const response = await api.getLessonById(lessonId);
+        setLesson(response.data);
+        
+        // Fetch other lessons from the same chapter
+        if (response.data.chapter) {
+          const chaptersResponse = await api.getChapters({ courseId: response.data.course._id });
+          const chapters = chaptersResponse.data.chapters || [];
+          const currentChapter = chapters.find(c => c._id === response.data.chapter._id);
+          
+          if (currentChapter && currentChapter.lessons) {
+            const otherLessons = currentChapter.lessons.filter(l => l._id !== lessonId);
+            setUpcomingLessons(otherLessons);
+          }
+        }
+      } catch (error) {
+        const errorMessage = error.response?.data?.message || error.message || 'Failed to load lesson';
+        toast.error(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // Mock upcoming lessons
-  const upcomingLessons = [
-    { id: '2', title: 'useState Hook Deep Dive', duration: '15:00' },
-    { id: '3', title: 'useEffect Hook Explained', duration: '20:00' },
-    { id: '4', title: 'Custom Hooks', duration: '25:00' }
-  ];
+    if (lessonId) {
+      fetchLesson();
+    }
+  }, [lessonId]);
 
   const handleSubmitDoubt = async (e) => {
     e.preventDefault();
-    // In a real implementation, this would submit to an API
-    console.log('Submitting doubt:', doubt);
-    setShowAskDoubtModal(false);
-    setDoubt('');
-  };
+    if (!doubt.trim()) return;
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const videoURL = URL.createObjectURL(file);
-      if (videoRef.current) {
-        videoRef.current.src = videoURL;
-      }
+    try {
+      const doubtData = {
+        title: `Question about: ${lesson.title}`,
+        description: doubt,
+        courseId: lesson.course._id,
+        category: 'concept'
+      };
+
+      await api.createDoubt(doubtData);
+      toast.success('Doubt submitted successfully!');
+      setShowAskDoubtModal(false);
+      setDoubt('');
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to submit doubt';
+      toast.error(errorMessage);
     }
   };
+
+  if (loading) {
+    return <div className="p-6 text-center">Loading lesson...</div>;
+  }
+
+  if (!lesson) {
+    return <div className="p-6 text-center">Lesson not found</div>;
+  }
 
   return (
     <div className="max-w-7xl mx-auto p-6">
@@ -61,15 +89,9 @@ export default function LessonPlayer() {
                   controls
                 />
               ) : (
-              <video
-                ref={videoRef}
-                className="w-full h-full"
-                controls
-                controlsList="nodownload"
-              >
-                <source type="video/mp4" />
-                Your browser does not support the video tag.
-              </video>
+                <div className="flex items-center justify-center h-96 bg-gray-100">
+                  <p className="text-gray-500">No video available for this lesson</p>
+                </div>
               )}
             </div>
             
@@ -77,54 +99,59 @@ export default function LessonPlayer() {
               <div className="flex justify-between items-center mb-4">
                 <h1 className="text-2xl font-bold">{lesson.title}</h1>
                 <div className="flex space-x-4">
-                  <button
-                    onClick={() => setShowAskDoubtModal(true)}
-                    className="flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
-                  >
-                    <FaQuestion className="mr-2" />
-                    Ask Doubt
-                  </button>
+                  {user?.role === 'student' && (
+                    <button
+                      onClick={() => setShowAskDoubtModal(true)}
+                      className="flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+                    >
+                      <FaQuestion className="mr-2" />
+                      Ask Doubt
+                    </button>
+                  )}
                 </div>
               </div>
 
               <p className="text-gray-600 mb-4">{lesson.description}</p>
 
-              <div className="mb-6">
-                <h2 className="text-lg font-semibold mb-2">Video Link</h2>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="text"
-                    value={lesson.videoUrl}
-                    readOnly
-                    className="flex-1 p-2 border rounded bg-gray-50 text-gray-600"
-                  />
-                  <a
-                    href={lesson.videoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-4 py-2 text-primary hover:text-primary/90"
-                  >
-                    Open in New Tab
-                  </a>
+              {lesson.course && (
+                <div className="mb-4 text-sm text-gray-600">
+                  Course: {lesson.course.title}
                 </div>
-              </div>
+              )}
 
-              <div>
-                <h2 className="text-lg font-semibold mb-3">Resources</h2>
-                <div className="space-y-2">
-                  {lesson.resources.map(resource => (
-                    <div
-                      key={resource.id}
-                      className="flex items-center p-3 border rounded hover:bg-gray-50"
-                    >
-                      <span className="text-primary mr-2">
-                        {resource.type === 'pdf' ? '📄' : '💻'}
-                      </span>
-                      <span>{resource.title}</span>
-                    </div>
-                  ))}
+              {lesson.chapter && (
+                <div className="mb-4 text-sm text-gray-600">
+                  Chapter: {lesson.chapter.title}
                 </div>
-              </div>
+              )}
+
+              {lesson.duration && (
+                <div className="mb-6 text-sm text-gray-600">
+                  Duration: {lesson.duration}
+                </div>
+              )}
+
+              {lesson.resources && lesson.resources.length > 0 && (
+                <div>
+                  <h2 className="text-lg font-semibold mb-3">Resources</h2>
+                  <div className="space-y-2">
+                    {lesson.resources.map((resource, index) => (
+                      <a
+                        key={index}
+                        href={resource.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center p-3 border rounded hover:bg-gray-50"
+                      >
+                        <span className="text-primary mr-2">
+                          {resource.type === 'pdf' ? '📄' : resource.type === 'code' ? '💻' : '🔗'}
+                        </span>
+                        <span>{resource.title}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -132,25 +159,32 @@ export default function LessonPlayer() {
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center mb-4">
             <FaList className="text-primary mr-2" />
-            <h2 className="text-lg font-semibold">Upcoming Lessons</h2>
+            <h2 className="text-lg font-semibold">Other Lessons</h2>
           </div>
 
           <div className="space-y-3">
-            {upcomingLessons.map(lesson => (
-              <div
-                key={lesson.id}
-                className="p-3 border rounded hover:bg-gray-50 cursor-pointer"
-              >
-                <h3 className="font-medium">{lesson.title}</h3>
-                <p className="text-sm text-gray-500">Duration: {lesson.duration}</p>
-              </div>
-            ))}
+            {upcomingLessons.length > 0 ? (
+              upcomingLessons.map(lessonItem => (
+                <a
+                  key={lessonItem._id}
+                  href={`/lessons/${lessonItem._id}`}
+                  className="block p-3 border rounded hover:bg-gray-50"
+                >
+                  <h3 className="font-medium">{lessonItem.title}</h3>
+                  {lessonItem.duration && (
+                    <p className="text-sm text-gray-500">Duration: {lessonItem.duration}</p>
+                  )}
+                </a>
+              ))
+            ) : (
+              <p className="text-gray-500 text-sm">No other lessons available</p>
+            )}
           </div>
         </div>
       </div>
 
       {showAskDoubtModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-lg w-full">
             <h2 className="text-xl font-bold mb-4">Ask a Doubt</h2>
             <form onSubmit={handleSubmitDoubt}>

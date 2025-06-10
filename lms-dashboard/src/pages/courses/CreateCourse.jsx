@@ -19,6 +19,8 @@ export default function CreateCourse() {
   });
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [createdCourseId, setCreatedCourseId] = useState(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -37,17 +39,33 @@ export default function CreateCourse() {
         ...formData,
         content,
         duration: parseInt(formData.duration),
-        price: parseFloat(formData.price) || 0
+        price: parseFloat(formData.price) || 0,
+        isPublished: false // Initially create as draft
       };
 
-      await api.createCourse(courseData);
-      toast.success('Course created successfully!');
-      navigate('/courses');
+      const response = await api.createCourse(courseData);
+      setCreatedCourseId(response.data._id);
+      setShowPublishModal(true);
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Failed to create course';
       toast.error(errorMessage);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePublishDecision = async (shouldPublish) => {
+    try {
+      if (shouldPublish && createdCourseId) {
+        await api.updateCourse(createdCourseId, { isPublished: true });
+        toast.success('Course created and published successfully!');
+      } else {
+        toast.success('Course created as draft successfully!');
+      }
+      navigate('/courses');
+    } catch (error) {
+      toast.error('Course created but failed to publish. You can publish it later.');
+      navigate('/courses');
     }
   };
 
@@ -202,6 +220,32 @@ export default function CreateCourse() {
           </button>
         </div>
       </form>
+
+      {/* Publish Modal */}
+      {showPublishModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-xl font-bold mb-4">Course Created Successfully!</h2>
+            <p className="text-gray-600 mb-6">
+              Would you like to publish this course now or keep it as a draft?
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => handlePublishDecision(false)}
+                className="px-4 py-2 border rounded text-gray-700 hover:bg-gray-50"
+              >
+                Keep as Draft
+              </button>
+              <button
+                onClick={() => handlePublishDecision(true)}
+                className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90"
+              >
+                Publish Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

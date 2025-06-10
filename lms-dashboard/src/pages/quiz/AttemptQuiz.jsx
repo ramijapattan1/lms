@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { FaClock } from 'react-icons/fa';
+import { api } from '../../services/api';
 
 export default function AttemptQuiz() {
   const { id } = useParams();
@@ -10,43 +11,26 @@ export default function AttemptQuiz() {
   const [answers, setAnswers] = useState({});
   const [timeLeft, setTimeLeft] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [startTime] = useState(new Date());
 
   useEffect(() => {
-    // In a real implementation, fetch quiz data from API
-    const mockQuiz = {
-      id,
-      title: 'JavaScript Fundamentals Quiz',
-      duration: 30, // minutes
-      questions: [
-        {
-          id: '1',
-          question: 'What is JavaScript?',
-          options: [
-            'A programming language',
-            'A markup language',
-            'A styling language',
-            'A database'
-          ],
-          isMultiple: false
-        },
-        {
-          id: '2',
-          question: 'Which of these are valid JavaScript data types?',
-          options: [
-            'String',
-            'Number',
-            'Boolean',
-            'All of the above'
-          ],
-          isMultiple: true
-        }
-      ]
+    const fetchQuiz = async () => {
+      try {
+        const response = await api.getQuizById(id);
+        const quizData = response.data;
+        setQuiz(quizData);
+        setTimeLeft(quizData.duration * 60); // Convert minutes to seconds
+        setLoading(false);
+      } catch (error) {
+        const errorMessage = error.response?.data?.message || error.message || 'Failed to load quiz';
+        toast.error(errorMessage);
+        navigate('/quiz');
+      }
     };
 
-    setQuiz(mockQuiz);
-    setTimeLeft(mockQuiz.duration * 60);
-    setLoading(false);
-  }, [id]);
+    fetchQuiz();
+  }, [id, navigate]);
 
   useEffect(() => {
     if (timeLeft <= 0) return;
@@ -71,35 +55,53 @@ export default function AttemptQuiz() {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  const handleAnswerChange = (questionId, optionIndex, isMultiple) => {
-    if (isMultiple) {
-      setAnswers(prev => ({
-        ...prev,
-        [questionId]: {
-          ...prev[questionId],
-          [optionIndex]: !prev[questionId]?.[optionIndex]
-        }
-      }));
-    } else {
-      setAnswers(prev => ({
-        ...prev,
-        [questionId]: { [optionIndex]: true }
-      }));
-    }
+  const handleAnswerChange = (questionId, optionIndex) => {
+    setAnswers(prev => ({
+      ...prev,
+      [questionId]: optionIndex
+    }));
   };
 
   const handleSubmit = async () => {
+    if (submitting) return;
+    
+    setSubmitting(true);
     try {
-      // In a real implementation, submit answers to API
+      const endTime = new Date();
+      const formattedAnswers = Object.entries(answers).map(([questionId, selectedOption]) => ({
+        questionId,
+        selectedOption
+      }));
+
+      const attemptData = {
+        answers: formattedAnswers,
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString()
+      };
+
+      const response = await api.submitQuizAttempt(id, attemptData);
       toast.success('Quiz submitted successfully!');
-      navigate('/quiz');
+      
+      // Navigate to results page with the result data
+      navigate(`/quiz/${id}/results`, { 
+        state: { 
+          result: response.data,
+          quiz: quiz
+        }
+      });
     } catch (error) {
-      toast.error('Failed to submit quiz');
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to submit quiz';
+      toast.error(errorMessage);
+      setSubmitting(false);
     }
   };
 
   if (loading) {
-    return <div className="flex justify-center items-center h-96">Loading...</div>;
+    return <div className="flex justify-center items-center h-96">Loading quiz...</div>;
+  }
+
+  if (!quiz) {
+    return <div className="flex justify-center items-center h-96">Quiz not found</div>;
   }
 
   return (
@@ -113,25 +115,28 @@ export default function AttemptQuiz() {
               {formatTime(timeLeft)}
             </div>
           </div>
+          {quiz.description && (
+            <p className="text-gray-600 mt-2">{quiz.description}</p>
+          )}
         </div>
 
         <div className="p-6 space-y-8">
           {quiz.questions.map((question, index) => (
             <div key={question.id} className="space-y-4">
-              <p className="font-medium">
+              <p className="font-medium text-lg">
                 {index + 1}. {question.question}
               </p>
               <div className="space-y-2 pl-6">
                 {question.options.map((option, optionIndex) => (
-                  <label key={optionIndex} className="flex items-center space-x-2">
+                  <label key={optionIndex} className="flex items-center space-x-3 cursor-pointer">
                     <input
-                      type={question.isMultiple ? "checkbox" : "radio"}
+                      type="radio"
                       name={`question-${question.id}`}
-                      checked={answers[question.id]?.[optionIndex] || false}
-                      onChange={() => handleAnswerChange(question.id, optionIndex, question.isMultiple)}
+                      checked={answers[question.id] === optionIndex}
+                      onChange={() => handleAnswerChange(question.id, optionIndex)}
                       className="h-4 w-4 text-primary focus:ring-primary border-gray-300"
                     />
-                    <span>{option}</span>
+                    <span className="text-gray-700">{option}</span>
                   </label>
                 ))}
               </div>
@@ -139,12 +144,16 @@ export default function AttemptQuiz() {
           ))}
         </div>
 
-        <div className="border-t p-6 flex justify-end">
+        <div className="border-t p-6 flex justify-between items-center">
+          <div className="text-sm text-gray-600">
+            Questions answered: {Object.keys(answers).length} / {quiz.questions.length}
+          </div>
           <button
             onClick={handleSubmit}
-            className="px-6 py-2 bg-primary text-white rounded hover:bg-primary/90"
+            disabled={submitting}
+            className="px-6 py-2 bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
           >
-            Submit Quiz
+            {submitting ? 'Submitting...' : 'Submit Quiz'}
           </button>
         </div>
       </div>

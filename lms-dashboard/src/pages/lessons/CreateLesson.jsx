@@ -1,17 +1,21 @@
-import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { FaUpload, FaPlus, FaTrash } from 'react-icons/fa';
+import { FaPlus, FaTrash } from 'react-icons/fa';
 import Card from '../../components/common/Card';
+import { api } from '../../services/api';
 
 export default function CreateLesson() {
-  const { courseId, chapterId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const chapterId = searchParams.get('chapterId');
+  const [loading, setLoading] = useState(false);
+  const [chapters, setChapters] = useState([]);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
+    chapterId: chapterId || '',
     videoUrl: '',
-    videoFile: null,
     duration: '',
     resources: []
   });
@@ -21,6 +25,19 @@ export default function CreateLesson() {
     type: 'pdf',
     url: ''
   });
+
+  useEffect(() => {
+    const fetchChapters = async () => {
+      try {
+        const response = await api.getChapters();
+        setChapters(response.data.chapters || []);
+      } catch (error) {
+        console.error('Failed to fetch chapters:', error);
+      }
+    };
+
+    fetchChapters();
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -36,16 +53,6 @@ export default function CreateLesson() {
       ...prev,
       [name]: value
     }));
-  };
-
-  const handleVideoFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setFormData(prev => ({
-        ...prev,
-        videoFile: file
-      }));
-    }
   };
 
   const addResource = () => {
@@ -75,12 +82,33 @@ export default function CreateLesson() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.chapterId) {
+      toast.error('Please select a chapter');
+      return;
+    }
+
+    setLoading(true);
     try {
-      // API call would go here
+      const lessonData = {
+        ...formData,
+        resources: formData.resources.map(({ id, ...resource }) => resource)
+      };
+
+      await api.createLesson(lessonData);
       toast.success('Lesson created successfully!');
-      navigate(`/courses/${courseId}`);
+      
+      // Navigate back to the course details page
+      const chapter = chapters.find(c => c._id === formData.chapterId);
+      if (chapter) {
+        navigate(`/courses/${chapter.course}`);
+      } else {
+        navigate('/courses');
+      }
     } catch (error) {
-      toast.error('Failed to create lesson');
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to create lesson';
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -91,6 +119,26 @@ export default function CreateLesson() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card title="Basic Information">
           <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Chapter
+              </label>
+              <select
+                name="chapterId"
+                value={formData.chapterId}
+                onChange={handleChange}
+                className="w-full p-2 border rounded focus:ring-primary focus:border-primary"
+                required
+              >
+                <option value="">Select a chapter</option>
+                {chapters.map(chapter => (
+                  <option key={chapter._id} value={chapter._id}>
+                    {chapter.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Lesson Title
@@ -135,23 +183,6 @@ export default function CreateLesson() {
                 className="w-full p-2 border rounded focus:ring-primary focus:border-primary"
                 placeholder="Enter video URL (YouTube, Vimeo, etc.)"
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Upload Video
-              </label>
-              <input
-                type="file"
-                accept="video/*"
-                onChange={handleVideoFileChange}
-                className="w-full p-2 border rounded focus:ring-primary focus:border-primary"
-              />
-              {formData.videoFile && (
-                <p className="mt-2 text-sm text-gray-600">
-                  Selected file: {formData.videoFile.name}
-                </p>
-              )}
             </div>
 
             <div>
@@ -201,6 +232,7 @@ export default function CreateLesson() {
                   <option value="pdf">PDF</option>
                   <option value="code">Code</option>
                   <option value="link">Link</option>
+                  <option value="file">File</option>
                 </select>
               </div>
 
@@ -255,16 +287,18 @@ export default function CreateLesson() {
         <div className="flex justify-end space-x-4">
           <button
             type="button"
-            onClick={() => navigate(`/courses/${courseId}`)}
+            onClick={() => navigate(-1)}
             className="px-4 py-2 border rounded text-gray-700 hover:bg-gray-50"
+            disabled={loading}
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90"
+            className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+            disabled={loading}
           >
-            Create Lesson
+            {loading ? 'Creating...' : 'Create Lesson'}
           </button>
         </div>
       </form>

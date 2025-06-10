@@ -35,16 +35,14 @@ export default function DoubtBox() {
         const doubtResponse = await api.getDoubts(doubtParams);
         setDoubts(doubtResponse.data.doubts || []);
 
-        // Fetch courses for filter
-        let coursesData = [];
-        if (user?.role === 'instructor') {
-          const coursesResponse = await api.getMyCourses();
-          coursesData = coursesResponse.data.courses || [];
-        } else {
+        // Fetch courses for filter - only for students
+        if (user?.role === 'student') {
           const coursesResponse = await api.getEnrolledCourses();
-          coursesData = coursesResponse.data.courses || [];
+          setCourses(coursesResponse.data.courses || []);
+        } else if (user?.role === 'instructor') {
+          const coursesResponse = await api.getMyCourses();
+          setCourses(coursesResponse.data.courses || []);
         }
-        setCourses(coursesData);
       } catch (err) {
         const errorMessage = err.response?.data?.message || err.message || 'Failed to load doubts';
         setError(errorMessage);
@@ -65,7 +63,19 @@ export default function DoubtBox() {
     }
 
     try {
-      await api.createDoubt(newDoubt);
+      const doubtData = {
+        title: newDoubt.title,
+        description: newDoubt.description,
+        category: newDoubt.category,
+        priority: newDoubt.priority
+      };
+
+      // Only add courseId if it's selected and not empty
+      if (newDoubt.courseId && newDoubt.courseId.trim() !== '') {
+        doubtData.courseId = newDoubt.courseId;
+      }
+
+      await api.createDoubt(doubtData);
       toast.success('Doubt submitted successfully!');
       setShowAskDoubtModal(false);
       setNewDoubt({
@@ -141,10 +151,12 @@ export default function DoubtBox() {
               ))}
             </select>
           )}
-          <Button onClick={() => setShowAskDoubtModal(true)}>
-            <FaPlus className="mr-2" />
-            Ask a Doubt
-          </Button>
+          {user?.role === 'student' && (
+            <Button onClick={() => setShowAskDoubtModal(true)}>
+              <FaPlus className="mr-2" />
+              Ask a Doubt
+            </Button>
+          )}
         </div>
       </div>
 
@@ -272,8 +284,8 @@ export default function DoubtBox() {
         </div>
       )}
 
-      {/* Ask Doubt Modal */}
-      {showAskDoubtModal && (
+      {/* Ask Doubt Modal - Only for students */}
+      {showAskDoubtModal && user?.role === 'student' && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-lg w-full">
             <h2 className="text-xl font-bold mb-4">Ask a Doubt</h2>

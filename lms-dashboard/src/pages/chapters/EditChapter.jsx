@@ -2,10 +2,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import Card from '../../components/common/Card';
+import { api } from '../../services/api';
 
 export default function EditChapter() {
   const { courseId, chapterId } = useParams();
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [fetchLoading, setFetchLoading] = useState(true);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -13,13 +16,28 @@ export default function EditChapter() {
   });
 
   useEffect(() => {
-    // Mock data fetch
-    setFormData({
-      title: 'Introduction to Web Development',
-      description: 'Learn the basics of web development',
-      orderIndex: 1
-    });
-  }, [chapterId]);
+    const fetchChapter = async () => {
+      try {
+        const response = await api.getChapterById(chapterId);
+        const chapter = response.data;
+        setFormData({
+          title: chapter.title,
+          description: chapter.description,
+          orderIndex: chapter.orderIndex
+        });
+      } catch (error) {
+        const errorMessage = error.response?.data?.message || error.message || 'Failed to load chapter';
+        toast.error(errorMessage);
+        navigate(`/courses/${courseId}`);
+      } finally {
+        setFetchLoading(false);
+      }
+    };
+
+    if (chapterId) {
+      fetchChapter();
+    }
+  }, [chapterId, courseId, navigate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -31,14 +49,28 @@ export default function EditChapter() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    
     try {
-      // API call would go here
+      const chapterData = {
+        ...formData,
+        orderIndex: parseInt(formData.orderIndex)
+      };
+
+      await api.updateChapter(chapterId, chapterData);
       toast.success('Chapter updated successfully!');
       navigate(`/courses/${courseId}`);
     } catch (error) {
-      toast.error('Failed to update chapter');
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to update chapter';
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
+
+  if (fetchLoading) {
+    return <div className="p-6 text-center">Loading chapter...</div>;
+  }
 
   return (
     <div className="max-w-4xl mx-auto p-6">
@@ -97,14 +129,16 @@ export default function EditChapter() {
             type="button"
             onClick={() => navigate(`/courses/${courseId}`)}
             className="px-4 py-2 border rounded text-gray-700 hover:bg-gray-50"
+            disabled={loading}
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90"
+            className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+            disabled={loading}
           >
-            Update Chapter
+            {loading ? 'Updating...' : 'Update Chapter'}
           </button>
         </div>
       </form>

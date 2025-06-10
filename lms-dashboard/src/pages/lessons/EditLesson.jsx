@@ -4,15 +4,19 @@ import { toast } from 'react-toastify';
 import { FaPlus, FaTrash } from 'react-icons/fa';
 import Card from '../../components/common/Card';
 import ReactPlayer from 'react-player';
+import { api } from '../../services/api';
 
 export default function EditLesson() {
-  const { courseId, chapterId, lessonId } = useParams();
+  const { lessonId } = useParams();
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [fetchLoading, setFetchLoading] = useState(true);
+  const [chapters, setChapters] = useState([]);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
+    chapterId: '',
     videoUrl: '',
-    videoFile: null,
     duration: '',
     resources: []
   });
@@ -24,22 +28,37 @@ export default function EditLesson() {
   });
 
   useEffect(() => {
-    // Mock data fetch
-    setFormData({
-      title: 'Introduction to React Hooks',
-      description: 'Learn about React Hooks and their usage',
-      videoUrl: 'https://www.youtube.com/watch?v=example',
-      duration: '45:00',
-      resources: [
-        {
-          id: '1',
-          title: 'Hooks Documentation',
-          type: 'pdf',
-          url: 'https://example.com/docs.pdf'
-        }
-      ]
-    });
-  }, [lessonId]);
+    const fetchData = async () => {
+      try {
+        // Fetch lesson data
+        const lessonResponse = await api.getLessonById(lessonId);
+        const lesson = lessonResponse.data;
+        
+        setFormData({
+          title: lesson.title,
+          description: lesson.description,
+          chapterId: lesson.chapter._id,
+          videoUrl: lesson.videoUrl || '',
+          duration: lesson.duration,
+          resources: lesson.resources || []
+        });
+
+        // Fetch chapters
+        const chaptersResponse = await api.getChapters();
+        setChapters(chaptersResponse.data.chapters || []);
+      } catch (error) {
+        const errorMessage = error.response?.data?.message || error.message || 'Failed to load lesson';
+        toast.error(errorMessage);
+        navigate(-1);
+      } finally {
+        setFetchLoading(false);
+      }
+    };
+
+    if (lessonId) {
+      fetchData();
+    }
+  }, [lessonId, navigate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -78,30 +97,41 @@ export default function EditLesson() {
   const removeResource = (id) => {
     setFormData(prev => ({
       ...prev,
-      resources: prev.resources.filter(resource => resource.id !== id)
+      resources: prev.resources.filter(resource => resource._id !== id && resource.id !== id)
     }));
-  };
-
-  const handleVideoFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setFormData(prev => ({
-        ...prev,
-        videoFile: file
-      }));
-    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    
     try {
-      // API call would go here
+      const lessonData = {
+        ...formData,
+        resources: formData.resources.map(({ id, _id, ...resource }) => resource)
+      };
+
+      await api.updateLesson(lessonId, lessonData);
       toast.success('Lesson updated successfully!');
-      navigate(`/courses/${courseId}`);
+      
+      // Navigate back to the course details page
+      const chapter = chapters.find(c => c._id === formData.chapterId);
+      if (chapter) {
+        navigate(`/courses/${chapter.course}`);
+      } else {
+        navigate('/courses');
+      }
     } catch (error) {
-      toast.error('Failed to update lesson');
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to update lesson';
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
+
+  if (fetchLoading) {
+    return <div className="p-6 text-center">Loading lesson...</div>;
+  }
 
   return (
     <div className="max-w-4xl mx-auto p-6">
@@ -110,6 +140,26 @@ export default function EditLesson() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card title="Basic Information">
           <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Chapter
+              </label>
+              <select
+                name="chapterId"
+                value={formData.chapterId}
+                onChange={handleChange}
+                className="w-full p-2 border rounded focus:ring-primary focus:border-primary"
+                required
+              >
+                <option value="">Select a chapter</option>
+                {chapters.map(chapter => (
+                  <option key={chapter._id} value={chapter._id}>
+                    {chapter.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Lesson Title
@@ -168,23 +218,6 @@ export default function EditLesson() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Upload Video
-              </label>
-              <input
-                type="file"
-                accept="video/*"
-                onChange={handleVideoFileChange}
-                className="w-full p-2 border rounded focus:ring-primary focus:border-primary"
-              />
-              {formData.videoFile && (
-                <p className="mt-2 text-sm text-gray-600">
-                  Selected file: {formData.videoFile.name}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Duration (e.g., "45:00")
               </label>
               <input
@@ -230,6 +263,7 @@ export default function EditLesson() {
                   <option value="pdf">PDF</option>
                   <option value="code">Code</option>
                   <option value="link">Link</option>
+                  <option value="file">File</option>
                 </select>
               </div>
 
@@ -260,7 +294,7 @@ export default function EditLesson() {
               <div className="mt-4 space-y-2">
                 {formData.resources.map(resource => (
                   <div
-                    key={resource.id}
+                    key={resource._id || resource.id}
                     className="flex items-center justify-between p-3 border rounded"
                   >
                     <div>
@@ -269,7 +303,7 @@ export default function EditLesson() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => removeResource(resource.id)}
+                      onClick={() => removeResource(resource._id || resource.id)}
                       className="text-red-500 hover:text-red-700"
                     >
                       <FaTrash />
@@ -284,16 +318,18 @@ export default function EditLesson() {
         <div className="flex justify-end space-x-4">
           <button
             type="button"
-            onClick={() => navigate(`/courses/${courseId}`)}
+            onClick={() => navigate(-1)}
             className="px-4 py-2 border rounded text-gray-700 hover:bg-gray-50"
+            disabled={loading}
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90"
+            className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+            disabled={loading}
           >
-            Update Lesson
+            {loading ? 'Updating...' : 'Update Lesson'}
           </button>
         </div>
       </form>
