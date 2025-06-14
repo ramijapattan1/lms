@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const asyncHandler = require('express-async-handler');
 const Quiz = require('../models/quizModel');
 const Course = require('../models/courseModel');
@@ -14,13 +15,14 @@ const getQuizzes = asyncHandler(async (req, res) => {
   const skip = (page - 1) * limit;
   const courseId = req.query.courseId;
 
-  let filter = {};
+  const filter = {};
 
-  if (courseId) {
-    filter.course = courseId;
-  }
+ if (courseId) {
+  filter.course = new mongoose.Types.ObjectId(courseId); // ✅ convert string to ObjectId
+}
+console.log(courseId);
 
-  // For students, only show active quizzes from enrolled courses
+ // For students, only show active quizzes from enrolled courses
   if (!req.user.isInstructor && !req.user.isAdmin) {
     filter.isActive = true;
     filter.startDate = { $lte: new Date() };
