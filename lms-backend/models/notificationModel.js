@@ -22,7 +22,10 @@ const notificationSchema = mongoose.Schema(
         'doubt_response',
         'announcement',
         'system',
-        'reminder'
+        'course_created',
+        'reminder',
+        'chapter_created',
+        'lesson_created'
       ],
       required: true,
     },

@@ -136,7 +136,8 @@ const createCourse = asyncHandler(async (req, res) => {
     level: Joi.string().valid('Beginner', 'Intermediate', 'Advanced').required(),
     duration: Joi.number().required(),
     thumbnailUrl: Joi.string().optional(),
-    content: Joi.string().optional()
+    content: Joi.string().optional(),
+    isPublished: Joi.boolean().optional()
   });
 
   const { error } = schema.validate(req.body);

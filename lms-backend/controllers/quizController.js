@@ -17,6 +17,8 @@ const getQuizzes = asyncHandler(async (req, res) => {
 
   const filter = {};
 
+  console.log("🔍 courseId received:", courseId);
+
   if (courseId) {
     filter.course = new mongoose.Types.ObjectId(courseId);
   }
@@ -30,20 +32,30 @@ const getQuizzes = asyncHandler(async (req, res) => {
       { endDate: { $exists: false } }
     ];
 
-    // Get enrolled courses for the student
-    const enrolledCourses = await Course.find({ students: req.user._id }).select('_id');
+    // ✅ Get enrolled courses with ObjectId conversion
+    const enrolledCourses = await Course.find({
+      students: new mongoose.Types.ObjectId(req.user._id)
+    }).select('_id');
+
     const enrolledCourseIds = enrolledCourses.map(course => course._id);
-    
+
+    console.log("👤 Logged-in user:", req.user._id.toString());
+    console.log("📚 Enrolled course IDs:", enrolledCourseIds.map(id => id.toString()));
+    console.log("👤 Is student?", !req.user.isInstructor && !req.user.isAdmin);
+
     if (courseId) {
-      // Check if student is enrolled in the specific course
-      if (!enrolledCourseIds.some(id => id.toString() === courseId)) {
+      const enrolled = enrolledCourseIds.map(id => id.toString()).includes(courseId);
+      console.log("🎯 Is student enrolled in courseId?", enrolled);
+
+      if (!enrolled) {
+        console.log("🚫 Student is not enrolled in the specified course.");
         return res.json({
           quizzes: [],
           page,
           pages: 0,
           total: 0,
           hasNextPage: false,
-          hasPrevPage: false,
+          hasPrevPage: false
         });
       }
     } else {
@@ -75,13 +87,11 @@ const getQuizzes = asyncHandler(async (req, res) => {
     let lastAttemptScore = null;
 
     if (!req.user.isInstructor && !req.user.isAdmin) {
-      // Check user's attempts
       const userAttemptsList = quiz.attempts.filter(
         attempt => attempt.student.toString() === req.user._id.toString()
       );
       userAttempts = userAttemptsList.length;
-      
-      // Check if user can attempt
+
       if (userAttempts > 0 && !quiz.settings.allowMultipleAttempts) {
         canAttempt = false;
       } else if (userAttempts >= quiz.settings.maxAttempts) {
@@ -103,9 +113,9 @@ const getQuizzes = asyncHandler(async (req, res) => {
       endDate: quiz.endDate,
       isEnabled: quiz.isActive,
       attempts: req.user.isInstructor || req.user.isAdmin ? quiz.attempts?.length || 0 : userAttempts,
-      avgScore: req.user.isInstructor || req.user.isAdmin 
-        ? (quiz.attempts?.length > 0 
-          ? quiz.attempts.reduce((acc, attempt) => acc + attempt.percentage, 0) / quiz.attempts.length 
+      avgScore: req.user.isInstructor || req.user.isAdmin
+        ? (quiz.attempts?.length > 0
+          ? quiz.attempts.reduce((acc, attempt) => acc + attempt.percentage, 0) / quiz.attempts.length
           : 0)
         : lastAttemptScore,
       course: quiz.course,
@@ -126,6 +136,7 @@ const getQuizzes = asyncHandler(async (req, res) => {
     hasPrevPage: page > 1,
   });
 });
+
 
 /**
  * Get quiz by ID

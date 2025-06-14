@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const asyncHandler = require('express-async-handler');
 const Lesson = require('../models/lessonModel');
 const Chapter = require('../models/chapterModel');
@@ -17,14 +18,15 @@ const getLessons = asyncHandler(async (req, res) => {
   const chapterId = req.query.chapterId;
   const courseId = req.query.courseId;
 
-  let filter = {};
   
-  if (chapterId) {
-    filter.chapter = chapterId;
+  const filter = {};
+
+  if (courseId && mongoose.Types.ObjectId.isValid(courseId)) {
+    filter.course = new mongoose.Types.ObjectId(courseId);
   }
-  
-  if (courseId) {
-    filter.course = courseId;
+
+  if (chapterId && mongoose.Types.ObjectId.isValid(chapterId)) {
+    filter.chapter = new mongoose.Types.ObjectId(chapterId);
   }
 
   // For instructors, show only their lessons
@@ -137,13 +139,18 @@ const createLesson = asyncHandler(async (req, res) => {
     throw new Error('Not authorized to create lesson for this chapter');
   }
 
-  const lesson = await Lesson.create({
-    ...lessonData,
-    chapter: chapterId,
-    course: chapter.course._id,
-    instructor: req.user._id,
-    ...(videoFileId && { videoFile: videoFileId }),
-  });
+  const courseId = (typeof chapter.course === 'object' && chapter.course._id)
+  ? chapter.course._id
+  : chapter.course;
+
+const lesson = await Lesson.create({
+  ...lessonData,
+  chapter: chapterId,
+  course: courseId,
+  instructor: req.user._id,
+  ...(videoFileId && { videoFile: videoFileId }),
+});
+
 
   // Add lesson to chapter
   chapter.lessons.push(lesson._id);

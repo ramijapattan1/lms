@@ -99,11 +99,13 @@ export default function CreateLesson() {
       
       // Navigate back to the course details page
       const chapter = chapters.find(c => c._id === formData.chapterId);
-      if (chapter) {
-        navigate(`/courses/${chapter.course}`);
+      if (chapter && chapter.course && chapter.course._id) {
+        navigate(`/courses/${chapter.course._id}`);
       } else {
+        console.error("Course ID not found in chapter:", chapter);
         navigate('/courses');
       }
+      
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Failed to create lesson';
       toast.error(errorMessage);
