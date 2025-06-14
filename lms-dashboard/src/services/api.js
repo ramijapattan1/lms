@@ -90,7 +90,14 @@ export const api = {
   createAssessment: (assessment) => apiClient.post('/assessments', assessment),
   updateAssessment: (id, assessment) => apiClient.put(`/assessments/${id}`, assessment),
   deleteAssessment: (id) => apiClient.delete(`/assessments/${id}`),
-  submitAssessment: (id, submission) => apiClient.post(`/assessments/${id}/submit`, submission),
+  submitAssessment: (id, submission) => {
+    // Handle both FormData and regular objects
+    const headers = submission instanceof FormData 
+      ? { 'Content-Type': 'multipart/form-data' }
+      : { 'Content-Type': 'application/json' };
+    
+    return apiClient.post(`/assessments/${id}/submit`, submission, { headers });
+  },
   gradeSubmission: (assessmentId, submissionId, grade) => 
     apiClient.put(`/assessments/${assessmentId}/submissions/${submissionId}/grade`, grade),
   getAssessmentSubmissions: (id, params = {}) => 

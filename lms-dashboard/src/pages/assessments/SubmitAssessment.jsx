@@ -10,14 +10,11 @@ export default function SubmitAssessment() {
   const [assessment, setAssessment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
   const [formData, setFormData] = useState({
-    content: {
-      text: '',
-      fileUrl: '',
-      fileName: '',
-      githubUrl: '',
-      websiteUrl: ''
-    }
+    text: '',
+    githubUrl: '',
+    websiteUrl: ''
   });
 
   useEffect(() => {
@@ -49,26 +46,29 @@ export default function SubmitAssessment() {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      content: {
-        ...prev.content,
-        [name]: value
-      }
+      [name]: value
     }));
   };
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // In a real implementation, you would upload the file to a server
-      // For now, we'll just store the file name
-      setFormData(prev => ({
-        ...prev,
-        content: {
-          ...prev.content,
-          fileName: file.name,
-          fileUrl: URL.createObjectURL(file) // This is just for demo
+      // Check file size
+      if (assessment.maxFileSize && file.size > assessment.maxFileSize * 1024 * 1024) {
+        toast.error(`File size must be less than ${assessment.maxFileSize}MB`);
+        return;
+      }
+
+      // Check file type
+      if (assessment.allowedFileTypes && assessment.allowedFileTypes.length > 0) {
+        const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+        if (!assessment.allowedFileTypes.includes(fileExtension)) {
+          toast.error(`File type not allowed. Allowed types: ${assessment.allowedFileTypes.join(', ')}`);
+          return;
         }
-      }));
+      }
+
+      setSelectedFile(file);
     }
   };
 
@@ -76,29 +76,41 @@ export default function SubmitAssessment() {
     e.preventDefault();
     
     // Validate based on submission type
-    if (assessment.submissionType === 'file' && !formData.content.fileName) {
+    if (assessment.submissionType === 'file' && !selectedFile) {
       toast.error('Please upload a file');
       return;
     }
     
-    if (assessment.submissionType === 'text' && !formData.content.text.trim()) {
+    if (assessment.submissionType === 'text' && !formData.text.trim()) {
       toast.error('Please enter your text submission');
       return;
     }
     
-    if (assessment.submissionType === 'url' && !formData.content.websiteUrl.trim()) {
+    if (assessment.submissionType === 'url' && !formData.websiteUrl.trim()) {
       toast.error('Please enter a URL');
       return;
     }
     
-    if (assessment.submissionType === 'github' && !formData.content.githubUrl.trim()) {
+    if (assessment.submissionType === 'github' && !formData.githubUrl.trim()) {
       toast.error('Please enter a GitHub repository URL');
       return;
     }
 
     setSubmitting(true);
     try {
-      await api.submitAssessment(id, formData);
+      const submitData = new FormData();
+      
+      if (assessment.submissionType === 'file') {
+        submitData.append('file', selectedFile);
+      } else if (assessment.submissionType === 'text') {
+        submitData.append('text', formData.text);
+      } else if (assessment.submissionType === 'url') {
+        submitData.append('websiteUrl', formData.websiteUrl);
+      } else if (assessment.submissionType === 'github') {
+        submitData.append('githubUrl', formData.githubUrl);
+      }
+
+      await api.submitAssessment(id, submitData);
       toast.success('Assessment submitted successfully!');
       navigate('/assessments');
     } catch (error) {
@@ -161,7 +173,7 @@ export default function SubmitAssessment() {
                 </label>
                 <textarea
                   name="text"
-                  value={formData.content.text}
+                  value={formData.text}
                   onChange={handleChange}
                   rows="10"
                   className="w-full p-3 border rounded focus:ring-primary focus:border-primary"
@@ -196,9 +208,9 @@ export default function SubmitAssessment() {
                     <p className="text-xs text-gray-500">
                       {assessment.allowedFileTypes?.join(', ')} up to {assessment.maxFileSize}MB
                     </p>
-                    {formData.content.fileName && (
+                    {selectedFile && (
                       <p className="text-sm text-green-600 mt-2">
-                        Selected: {formData.content.fileName}
+                        Selected: {selectedFile.name}
                       </p>
                     )}
                   </div>
@@ -215,7 +227,7 @@ export default function SubmitAssessment() {
                 <input
                   type="url"
                   name="websiteUrl"
-                  value={formData.content.websiteUrl}
+                  value={formData.websiteUrl}
                   onChange={handleChange}
                   placeholder="https://example.com"
                   className="w-full p-3 border rounded focus:ring-primary focus:border-primary"
@@ -233,7 +245,7 @@ export default function SubmitAssessment() {
                 <input
                   type="url"
                   name="githubUrl"
-                  value={formData.content.githubUrl}
+                  value={formData.githubUrl}
                   onChange={handleChange}
                   placeholder="https://github.com/username/repository"
                   className="w-full p-3 border rounded focus:ring-primary focus:border-primary"

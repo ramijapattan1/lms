@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { FaPlay, FaFile, FaQuestionCircle, FaTasks, FaEdit, FaPlus, FaUserPlus, FaCheckCircle } from 'react-icons/fa';
+import { FaPlay, FaFile, FaQuestionCircle, FaTasks, FaEdit, FaPlus, FaUserPlus, FaCheckCircle, FaTrash } from 'react-icons/fa';
 import { api } from '../../services/api';
 import { toast } from 'react-toastify';
 
@@ -121,6 +121,21 @@ export default function CourseDetails() {
     }
   };
 
+  const handleDeleteCourse = async () => {
+    if (!window.confirm('Are you sure you want to delete this course? This will also delete all chapters, lessons, quizzes, and assessments associated with it.')) {
+      return;
+    }
+
+    try {
+      await api.deleteCourse(id);
+      toast.success('Course deleted successfully!');
+      navigate('/courses');
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to delete course';
+      toast.error(errorMessage);
+    }
+  };
+
   if (loading) return <div className="p-4 md:p-6 text-center">Loading course details...</div>;
   if (error) return <div className="p-4 md:p-6 text-center text-red-500">Error: {error}</div>;
   if (!course) return <div className="p-4 md:p-6 text-center">Course not found</div>;
@@ -166,13 +181,22 @@ export default function CourseDetails() {
           </div>
           
           {isOwner && (
-            <Link
-              to={`/courses/${id}/edit`}
-              className="flex items-center px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 whitespace-nowrap"
-            >
-              <FaEdit className="mr-2" />
-              Edit Course
-            </Link>
+            <div className="flex gap-2">
+              <Link
+                to={`/courses/${id}/edit`}
+                className="flex items-center px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 whitespace-nowrap"
+              >
+                <FaEdit className="mr-2" />
+                Edit Course
+              </Link>
+              <button
+                onClick={handleDeleteCourse}
+                className="flex items-center px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 whitespace-nowrap"
+              >
+                <FaTrash className="mr-2" />
+                Delete Course
+              </button>
+            </div>
           )}
         </div>
       </div>

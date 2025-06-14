@@ -34,6 +34,19 @@ const getLessons = asyncHandler(async (req, res) => {
     filter.instructor = req.user._id;
   }
 
+  // For students, only show published lessons from enrolled courses
+  if (!req.user.isInstructor && !req.user.isAdmin) {
+    filter.isPublished = true;
+    
+    // Get enrolled courses
+    const enrolledCourses = await Course.find({
+      students: req.user._id
+    }).select('_id');
+    
+    const enrolledCourseIds = enrolledCourses.map(course => course._id);
+    filter.course = { $in: enrolledCourseIds };
+  }
+
   const lessons = await Lesson.find(filter)
     .sort({ orderIndex: 1 })
     .skip(skip)
@@ -63,7 +76,7 @@ const getLessons = asyncHandler(async (req, res) => {
 const getLessonById = asyncHandler(async (req, res) => {
   const lesson = await Lesson.findById(req.params.id)
     .populate('chapter', 'title')
-    .populate('course', 'title')
+    .populate('course', 'title students')
     .populate('instructor', 'name email')
     .populate('videoFile', 'title fileKey');
 
@@ -76,9 +89,24 @@ const getLessonById = asyncHandler(async (req, res) => {
   const isInstructor = lesson.instructor._id.toString() === req.user._id.toString();
   const isAdmin = req.user.isAdmin;
 
-  if (!isInstructor && !isAdmin && !lesson.isPublished) {
-    res.status(403);
-    throw new Error('Lesson not published');
+  if (!isInstructor && !isAdmin) {
+    // For students, check if lesson is published
+    if (!lesson.isPublished) {
+      res.status(403);
+      throw new Error('Lesson not published');
+    }
+
+    // Check if student is enrolled in the course
+    if (lesson.course && lesson.course.students) {
+      const isEnrolled = lesson.course.students.some(
+        studentId => studentId.toString() === req.user._id.toString()
+      );
+      
+      if (!isEnrolled) {
+        res.status(403);
+        throw new Error('You must be enrolled in the course to access this lesson');
+      }
+    }
   }
 
   // Increment view count for students

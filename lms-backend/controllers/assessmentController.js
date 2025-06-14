@@ -1,7 +1,48 @@
-  const asyncHandler = require('express-async-handler');
+const asyncHandler = require('express-async-handler');
   const Assessment = require('../models/assessmentModel');
   const Course = require('../models/courseModel');
+  const r2Service = require('../services/r2Service');
+  const multer = require('multer');
+  const path = require('path');
   const Joi = require('joi');
+
+  // Configure multer for memory storage
+  const storage = multer.memoryStorage();
+  const upload = multer({
+    storage,
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50 MB limit
+    },
+    fileFilter: (req, file, cb) => {
+      // Accept common file types
+      const allowedTypes = /pdf|doc|docx|txt|zip|rar|jpg|jpeg|png|gif/;
+      const mimetype = allowedTypes.test(file.mimetype);
+      const extname = allowedTypes.test(
+        path.extname(file.originalname).toLowerCase()
+      );
+
+      if (mimetype && extname) {
+        return cb(null, true);
+      }
+      cb(new Error('File type not allowed!'));
+    },
+  }).single('file');
+
+  /**
+   * Upload middleware wrapper
+   */
+  const uploadMiddleware = (req, res, next) => {
+    upload(req, res, (err) => {
+      if (err instanceof multer.MulterError) {
+        res.status(400);
+        throw new Error(`Upload error: ${err.message}`);
+      } else if (err) {
+        res.status(400);
+        throw new Error(err.message);
+      }
+      next();
+    });
+  };
 
   /**
    * Get all assessments with pagination
@@ -260,22 +301,6 @@
    * @access  Private
    */
   const submitAssessment = asyncHandler(async (req, res) => {
-    const schema = Joi.object({
-      content: Joi.object({
-        text: Joi.string(),
-        fileUrl: Joi.string(),
-        fileName: Joi.string(),
-        githubUrl: Joi.string().uri(),
-        websiteUrl: Joi.string().uri()
-      }).required()
-    });
-
-    const { error } = schema.validate(req.body);
-    if (error) {
-      res.status(400);
-      throw new Error(error.details[0].message);
-    }
-
     const assessment = await Assessment.findById(req.params.id);
 
     if (!assessment) {
@@ -307,9 +332,55 @@
       throw new Error('Submission deadline has passed');
     }
 
+    let content = {};
+
+    // Handle different submission types
+    if (assessment.submissionType === 'text') {
+      if (!req.body.text || !req.body.text.trim()) {
+        res.status(400);
+        throw new Error('Text content is required');
+      }
+      content.text = req.body.text;
+    } else if (assessment.submissionType === 'url') {
+      if (!req.body.websiteUrl || !req.body.websiteUrl.trim()) {
+        res.status(400);
+        throw new Error('Website URL is required');
+      }
+      content.websiteUrl = req.body.websiteUrl;
+    } else if (assessment.submissionType === 'github') {
+      if (!req.body.githubUrl || !req.body.githubUrl.trim()) {
+        res.status(400);
+        throw new Error('GitHub URL is required');
+      }
+      content.githubUrl = req.body.githubUrl;
+    } else if (assessment.submissionType === 'file') {
+      if (!req.file) {
+        res.status(400);
+        throw new Error('File is required');
+      }
+
+      // Upload file to Cloudflare R2
+      const fileExtension = path.extname(req.file.originalname);
+      const fileKey = `assessments/${req.user._id}/${assessment._id}/${Date.now()}${fileExtension}`;
+
+      try {
+        await r2Service.uploadFile(
+          req.file.buffer,
+          fileKey,
+          req.file.mimetype
+        );
+
+        content.fileUrl = r2Service.getPublicUrl(fileKey);
+        content.fileName = req.file.originalname;
+      } catch (error) {
+        res.status(500);
+        throw new Error(`Failed to upload file: ${error.message}`);
+      }
+    }
+
     const submission = {
       student: req.user._id,
-      content: req.body.content,
+      content,
       isLate,
       submittedAt: now
     };
@@ -426,4 +497,5 @@
     submitAssessment,
     gradeSubmission,
     getAssessmentSubmissions,
+    uploadMiddleware,
   };

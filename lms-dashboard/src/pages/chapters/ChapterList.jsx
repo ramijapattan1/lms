@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { FaVideo, FaFile, FaQuestionCircle, FaTasks, FaPlus, FaEdit } from 'react-icons/fa';
+import { FaVideo, FaFile, FaQuestionCircle, FaTasks, FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
 import { api } from '../../services/api';
 import { toast } from 'react-toastify';
 
@@ -32,6 +32,24 @@ export default function ChapterList() {
       fetchChapters();
     }
   }, [courseId]);
+
+  const handleDeleteChapter = async (chapterId) => {
+    if (!window.confirm('Are you sure you want to delete this chapter? This will also delete all lessons in this chapter.')) {
+      return;
+    }
+
+    try {
+      await api.deleteChapter(chapterId);
+      toast.success('Chapter deleted successfully!');
+      
+      // Refresh chapters
+      const response = await api.getChapters({ courseId });
+      setChapters(response.data.chapters || []);
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to delete chapter';
+      toast.error(errorMessage);
+    }
+  };
 
   const getIcon = (type) => {
     switch (type) {
@@ -96,6 +114,12 @@ export default function ChapterList() {
                       >
                         <FaPlus />
                       </Link>
+                      <button
+                        onClick={() => handleDeleteChapter(chapter._id)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <FaTrash />
+                      </button>
                     </div>
                   )}
                 </div>

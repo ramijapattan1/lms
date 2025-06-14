@@ -9,6 +9,7 @@ const {
   submitAssessment,
   gradeSubmission,
   getAssessmentSubmissions,
+  uploadMiddleware,
 } = require('../controllers/assessmentController');
 const { protect, instructor } = require('../middlewares/authMiddleware');
 
@@ -18,7 +19,7 @@ router.use(protect);
 // Student and instructor routes
 router.get('/', getAssessments);
 router.get('/:id', getAssessmentById);
-router.post('/:id/submit', submitAssessment);
+router.post('/:id/submit', uploadMiddleware, submitAssessment);
 
 // Instructor only routes
 router.post('/', instructor, createAssessment);

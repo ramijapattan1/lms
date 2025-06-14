@@ -197,7 +197,7 @@ const deleteChapter = asyncHandler(async (req, res) => {
 
   await chapter.deleteOne();
 
-  res.json({ message: 'Chapter removed' });
+  res.json({ message: 'Chapter and all lessons removed' });
 });
 
 module.exports = {

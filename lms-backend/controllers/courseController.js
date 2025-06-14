@@ -2,6 +2,10 @@ const asyncHandler = require('express-async-handler');
 const Course = require('../models/courseModel');
 const Video = require('../models/videoModel');
 const User = require('../models/userModel');
+const Chapter = require('../models/chapterModel');
+const Lesson = require('../models/lessonModel');
+const Quiz = require('../models/quizModel');
+const Assessment = require('../models/assessmentModel');
 const { createNotificationForUsers } = require('./notificationController');
 const Joi = require('joi');
 
@@ -215,8 +219,24 @@ const deleteCourse = asyncHandler(async (req, res) => {
     throw new Error('Unauthorized');
   }
 
+  // Delete related chapters and lessons
+  const chapters = await Chapter.find({ course: req.params.id });
+  for (const chapter of chapters) {
+    // Delete lessons in this chapter
+    await Lesson.deleteMany({ chapter: chapter._id });
+  }
+  
+  // Delete chapters
+  await Chapter.deleteMany({ course: req.params.id });
+  
+  // Delete quizzes
+  await Quiz.deleteMany({ course: req.params.id });
+  
+  // Delete assessments
+  await Assessment.deleteMany({ course: req.params.id });
+
   await course.deleteOne();
-  res.json({ message: 'Course deleted' });
+  res.json({ message: 'Course and all related content deleted' });
 });
 
 // @desc    Enroll in a course

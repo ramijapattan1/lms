@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { FaPlus, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { FaPlus, FaEye, FaEyeSlash, FaTrash } from 'react-icons/fa';
 import CourseCard from '../../components/courses/CourseCard';
 import { api } from '../../services/api';
 import { toast } from 'react-toastify';
@@ -46,6 +46,21 @@ export default function CourseList() {
       fetchCourses(); // Refresh the list
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Failed to update course';
+      toast.error(errorMessage);
+    }
+  };
+
+  const handleDeleteCourse = async (courseId) => {
+    if (!window.confirm('Are you sure you want to delete this course? This will also delete all chapters, lessons, quizzes, and assessments associated with it.')) {
+      return;
+    }
+
+    try {
+      await api.deleteCourse(courseId);
+      toast.success('Course deleted successfully!');
+      fetchCourses(); // Refresh the list
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to delete course';
       toast.error(errorMessage);
     }
   };
@@ -115,26 +130,34 @@ export default function CourseList() {
                     }`}>
                       {course.isPublished ? 'Published' : 'Draft'}
                     </span>
-                    <button
-                      onClick={() => togglePublishStatus(course.id, course.isPublished)}
-                      className={`flex items-center px-3 py-1 rounded text-xs ${
-                        course.isPublished
-                          ? 'bg-red-500 text-white hover:bg-red-600'
-                          : 'bg-green-500 text-white hover:bg-green-600'
-                      }`}
-                    >
-                      {course.isPublished ? (
-                        <>
-                          <FaEyeSlash className="mr-1" />
-                          Unpublish
-                        </>
-                      ) : (
-                        <>
-                          <FaEye className="mr-1" />
-                          Publish
-                        </>
-                      )}
-                    </button>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => togglePublishStatus(course.id, course.isPublished)}
+                        className={`flex items-center px-3 py-1 rounded text-xs ${
+                          course.isPublished
+                            ? 'bg-red-500 text-white hover:bg-red-600'
+                            : 'bg-green-500 text-white hover:bg-green-600'
+                        }`}
+                      >
+                        {course.isPublished ? (
+                          <>
+                            <FaEyeSlash className="mr-1" />
+                            Unpublish
+                          </>
+                        ) : (
+                          <>
+                            <FaEye className="mr-1" />
+                            Publish
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteCourse(course.id)}
+                        className="flex items-center px-3 py-1 rounded text-xs bg-red-500 text-white hover:bg-red-600"
+                      >
+                        <FaTrash />
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
